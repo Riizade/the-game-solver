@@ -12,3 +12,9 @@ Setup
 Run
 =====
 - `pipenv run main`
+
+Additional Commands
+=====
+- `pipenv run test`
+- `pipenv run mypy`
+- `pipenv run flake8`
