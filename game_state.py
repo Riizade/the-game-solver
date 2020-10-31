@@ -16,7 +16,24 @@ class PrintLevel(Enum):
 class CardPile:
     cards: List[int] = field(default_factory=list)
     direction_ascending: bool = True
-    face_card: int = 1
+
+    @property
+    def face_card(self) -> int:
+        return self.cards[-1]
+
+    @property
+    def direction_descending(self) -> bool:
+        return not self.direction_ascending
+
+    def placement_is_valid(self, card: int) -> bool:
+        if card > self.face_card and self.direction_ascending:
+            return True
+        elif card < self.face_card and self.direction_descending:
+            return True
+        elif card == self.face_card + 10 or card == self.face_card - 10:
+            return True
+        else:
+            return False
 
 
 @dataclass(frozen=True)
@@ -42,8 +59,61 @@ class GameState:
     hand: List[int] = field(default_factory=list)
     deck: List[int] = field(default_factory=list)
 
+    @property
+    def has_valid_moves(self) -> bool:
+        placement_validities = []
+        for card in self.hand:
+            for pile in self.piles:
+                placement_validities.append(pile.placement_is_valid(card))
 
-def initialize_deck(seed: Optional[int] = None) -> List[int]:
+        return True in placement_validities
+
+    @property
+    def has_won(self) -> bool:
+        if len(self.hand) == 0 and len(self.deck) == 0:
+            return True
+        else:
+            return False
+
+    @property
+    def visible_state(self) -> VisibleGameState:
+        # copies mutable objects to prevent cheating player strategies
+        return VisibleGameState(piles=self.piles.copy(), hand=self.hand.copy())
+
+    def is_valid_action(self, action: PlayerAction) -> bool:
+        return action.chosen_card in self.hand and self.piles[action.chosen_pile_index].placement_is_valid(action.chosen_card)
+
+
+@dataclass(frozen=True)
+class AggregateStats:
+    end_states: List[GameState] = field(default_factory=list)
+
+    @property
+    def total_games(self) -> int:
+        return len(self.end_states)
+
+    @property
+    def total_wins(self) -> int:
+        return len([x for x in filter(lambda s: s.has_won, self.end_states)])
+
+    @property
+    def total_losses(self) -> int:
+        return self.total_games - self.total_wins
+
+    @property
+    def win_ratio(self) -> float:
+        return float(self.total_wins) / float(self.total_games)
+
+    def __str__(self) -> str:
+        return "\n".join([
+            f"total games: {self.total_games}",
+            f"wins: {self.total_wins}",
+            f"losses: {self.total_losses}",
+            f"win ratio: {self.win_ratio}",
+            ])
+
+
+def initial_deck(seed: Optional[int] = None) -> List[int]:
     if seed is None:
         seed = random.randint(0, sys.maxsize)
     random.seed(seed)
@@ -51,6 +121,33 @@ def initialize_deck(seed: Optional[int] = None) -> List[int]:
     ordered_tuples: List[Tuple[int, int]] = [(random.randint(0, sys.maxsize), n) for n in range(2, 100)]
     ordered_tuples.sort()
     return [t[1] for t in ordered_tuples]
+
+
+def initial_piles() -> List[CardPile]:
+    piles = []
+
+    for i in range(2):
+        piles.append(CardPile(cards=[100], direction_ascending=False))
+
+    for i in range(2):
+        piles.append(CardPile(cards=[1], direction_ascending=True))
+
+    return piles
+
+
+def initial_state(seed: Optional[int] = None) -> GameState:
+    deck = initial_deck(seed)
+    piles = initial_piles()
+    state = GameState(piles=piles, hand=[], deck=deck)
+
+    return draw_cards(state)
+
+
+def draw_cards(state: GameState) -> GameState:
+    while len(state.hand) < 8 and len(state.deck) > 0:
+        state = draw_card(state)
+
+    return state
 
 
 def draw_card(state: GameState) -> GameState:
@@ -72,15 +169,50 @@ def take_turn(state: GameState, turn: PlayerTurn) -> GameState:
         state = take_action(state, action)
 
     # draw new cards
-    while len(state.hand) < 8:
-        state = draw_card(state)
+    state = draw_cards(state)
 
     return state
 
 
 def take_action(state: GameState, action: PlayerAction) -> GameState:
-    pass
+    # check if action is valid
+    if not state.is_valid_action(action):
+        raise Exception(f"player cheated, action {action} is not valid at state {state}")
+
+    # copy mutable variables to prevent mutation of previous state, then modify
+    hand = state.hand.copy()
+    hand.remove(action.chosen_card)
+
+    piles = state.piles.copy()
+    pile = state.piles[action.chosen_pile_index]
+    cards = pile.cards.copy()
+    cards.append(action.chosen_card)
+    piles[action.chosen_pile_index] = CardPile(cards=cards, direction_ascending=pile.direction_ascending)
+
+    return GameState(piles=piles, hand=hand, deck=state.deck)
 
 
-def simulate(strategy: Callable[[VisibleGameState], PlayerTurn], num_games: int = 1, print_level: PrintLevel = PrintLevel.WIN_LOSS) -> None:
-    pass
+def simulate_game(strategy: Callable[[VisibleGameState], PlayerTurn], num_games: int = 1, print_level: PrintLevel = PrintLevel.WIN_LOSS) -> None:
+    end_states: List[GameState] = []
+
+    for i in range(num_games):
+        state = initial_state()
+
+        while state.has_valid_moves:
+            turn = strategy(state.visible_state)
+            state = take_turn(state, turn)
+
+            if print_level.value >= PrintLevel.EACH_TURN:
+                print(state.__repr__)
+
+        # end of game
+        if print_level.value >= PrintLevel.WIN_LOSS:
+            if state.has_won:
+                print(f"won game #{i}")
+            else:
+                print(f"lost game #{i}")
+
+        end_states.append(state)
+
+    if print_level.value >= PrintLevel.AGGREGATE:
+        print(AggregateStats(end_states=end_states).__repr__)
