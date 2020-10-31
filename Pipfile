@@ -6,8 +6,15 @@ verify_ssl = true
 [dev-packages]
 mypy = "*"
 flake8 = "*"
+pytest = "*"
 
 [packages]
 
 [requires]
 python_version = "3.8"
+
+[scripts]
+main = "python src/main.py"
+test = "py.test"
+flake8 = "flake8 ."
+mypy = "mypy ."

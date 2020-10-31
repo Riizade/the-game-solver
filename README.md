@@ -1,6 +1,9 @@
 # the-game-solver
 Solver for the card game "The Game"
 
+Requirements
+=====
+- `pipenv`
 
 Setup
 =====
@@ -8,4 +11,4 @@ Setup
 
 Run
 =====
-- `pipenv run main.py`
+- `pipenv run main`
