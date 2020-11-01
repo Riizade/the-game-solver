@@ -26,6 +26,11 @@ class CardPile:
     def descending(self) -> bool:
         return not self.ascending
 
+    @property
+    def visual(self) -> str:
+        glyph = "^" if self.ascending else "v"
+        return f"[ {self.face_card} {glyph} ]"
+
     # returns a map of card in hand to the change in value if that card is placed on the pile
     def change_if_placed(self, hand: List[int]) -> Dict[int, int]:
         result: Dict[int, int] = {}
@@ -95,6 +100,14 @@ class GameState:
         # copies mutable objects to prevent cheating player strategies
         return VisibleGameState(piles=self.piles.copy(), hand=self.hand.copy())
 
+    @property
+    def visual(self) -> str:
+        return "\n".join([
+            f"hand: | {' | '.join([str(c) for c in self.hand])} |",
+            f"piles: | {' | '.join([p.visual for p in self.piles])} |",
+            f"deck: {' -> '.join([str(c) for c in self.deck[::-1][:8]])}"
+        ])
+
     def is_valid_action(self, action: PlayerAction) -> bool:
         return action.chosen_card in self.hand and self.piles[action.chosen_pile_index].placement_is_valid(action.chosen_card)
 
@@ -115,8 +128,9 @@ class VisibleGameState:
         result: Dict[int, List[int]] = {}
         for card in self.hand:
             result[card] = []
-            for pile_change in self.change_if_placed_on_pile:
-                result[card].append(pile_change[card])
+            for pile_index, pile_change in enumerate(self.change_if_placed_on_pile):
+                if card in self.piles[pile_index].valid_cards(self.hand):
+                    result[card].append(pile_change[card])
         return result
 
     # Dict from card in hand to greediest play for that card
@@ -286,10 +300,13 @@ def simulate(strategy: Callable[[VisibleGameState], PlayerTurn], num_games: int 
             state = take_turn(state, turn)
 
             if print_level.value >= PrintLevel.EACH_TURN.value:
+                print('-' * 80)
+                print('player takes their turn')
                 for action in turn.actions:
                     print(f"player places {action.chosen_card} on pile {action.chosen_pile_index}")
                 print("player ends their turn")
-                print(state.__repr__)
+                print(state.visual)
+                print ('-' * 80)
 
         # end of game
         if print_level.value >= PrintLevel.WIN_LOSS.value:
@@ -301,4 +318,4 @@ def simulate(strategy: Callable[[VisibleGameState], PlayerTurn], num_games: int 
         end_states.append(state)
 
     if print_level.value >= PrintLevel.AGGREGATE.value:
-        print(AggregateStats(end_states=end_states).__repr__)
+        print(AggregateStats(end_states=end_states).__repr__())
