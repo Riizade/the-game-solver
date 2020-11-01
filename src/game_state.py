@@ -332,12 +332,15 @@ def simulate(strategy: Callable[[GameState], PlayerTurn], num_games: int = 1, pr
 
         # end of game
         if print_level.value >= PrintLevel.WIN_LOSS.value:
+            print('=' * 80)
             if state.has_won:
                 print(f"won game #{i}")
             else:
                 print(f"lost game #{i}")
+            print('=' * 80)
 
         end_states.append(state)
 
     if print_level.value >= PrintLevel.AGGREGATE.value:
+        print("#" * 80)
         print(AggregateStats(end_states=end_states).__repr__())
