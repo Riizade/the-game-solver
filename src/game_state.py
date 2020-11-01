@@ -285,14 +285,14 @@ def simulate(strategy: Callable[[VisibleGameState], PlayerTurn], num_games: int 
             turn = strategy(state.visible_state)
             state = take_turn(state, turn)
 
-            if print_level.value >= PrintLevel.EACH_TURN:
+            if print_level.value >= PrintLevel.EACH_TURN.value:
                 for action in turn.actions:
                     print(f"player places {action.chosen_card} on pile {action.chosen_pile_index}")
                 print("player ends their turn")
                 print(state.__repr__)
 
         # end of game
-        if print_level.value >= PrintLevel.WIN_LOSS:
+        if print_level.value >= PrintLevel.WIN_LOSS.value:
             if state.has_won:
                 print(f"won game #{i}")
             else:
@@ -300,5 +300,5 @@ def simulate(strategy: Callable[[VisibleGameState], PlayerTurn], num_games: int 
 
         end_states.append(state)
 
-    if print_level.value >= PrintLevel.AGGREGATE:
+    if print_level.value >= PrintLevel.AGGREGATE.value:
         print(AggregateStats(end_states=end_states).__repr__)
