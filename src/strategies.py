@@ -1,8 +1,8 @@
 from random import choice as random_choice
-from typing import Callable, List
+from typing import Callable, Dict, List
 from functools import cmp_to_key
 
-from game_state import Card, PlayerAction, PlayerTurn, GameState, take_action
+from game_state import Card, PlayerAction, PlayerTurn, GameState, take_action, take_turn
 
 
 def greedy(state: GameState) -> PlayerTurn:
@@ -72,3 +72,48 @@ def prioritization(state: GameState, less_than: Callable[[PlayerAction, PlayerAc
             new_sorted_actions = sorted(new_valid_actions, key=key)
             second_action = new_sorted_actions[0]
             return PlayerTurn([action, second_action])
+
+
+backtrack_solver_cache: Dict[GameState, PlayerTurn] = {}
+
+
+# this solver cheats by "looking into the future" and knowing which cards it will draw after playing
+def backtrack_solver(state: GameState) -> PlayerTurn:
+    # if the cache has been populated with a winning strategy
+    if state in backtrack_solver_cache:
+        return backtrack_solver_cache[state]
+
+    valid_turns_stack = [state.all_valid_turns]
+    turn_index_stack = [0]
+    state_stack = [state]
+    while not state_stack[-1].has_won and len(state_stack) > 0:
+        # if we can evaluate the currently selected turn index
+        if turn_index_stack[-1] < len(valid_turns_stack[-1]):
+            # select the turn
+            turn = valid_turns_stack[-1][turn_index_stack[-1]]
+            # evaluate new state
+            new_state = take_turn(state_stack[-1], turn)
+            # mark the turn as evaluated (select next turn)
+            turn_index_stack[-1] += 1
+
+            # increment the stacks
+            turn_index_stack.append(0)
+            state_stack.append(new_state)
+            valid_turns_stack.append(new_state.all_valid_turns)
+        else:  # if we've run out of turns to evaluate on this frame
+            # pop the stacks to backtrack
+            turn_index_stack.pop()
+            valid_turns_stack.pop()
+            state_stack.pop()
+
+    # when we exit the loop, either we've found a winning strategy, or we've evaluated all strategies and not found a winner
+    if len(state_stack) == 0:  # indicates we did not find a strategy, just return any turn and expect to lose
+        return state.all_valid_turns[0]
+    elif state_stack[-1].has_won:  # indicates we've won
+        # populate the cache with the winning strategy
+        for i in range(len(state_stack)):
+            backtrack_solver_cache[state_stack[i]] = valid_turns_stack[i][turn_index_stack[i]]
+        # return the first turn from the winning strategy
+        return backtrack_solver_cache[state]
+    else:
+        raise Exception("unexpectedly finished backtracking without winning")

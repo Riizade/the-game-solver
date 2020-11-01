@@ -1,10 +1,10 @@
 from game_state import simulate, PrintLevel
-from strategies import greedy, greedy_tracks_tens, random
+from strategies import backtrack_solver, greedy, greedy_tracks_tens, random
 
 
 def main():
-    num_runs = 100
-    strats = [greedy, random, greedy_tracks_tens]
+    num_runs = 10
+    strats = [backtrack_solver, greedy, random, greedy_tracks_tens]
 
     for strat in strats:
         print(f"evaluating strategy {strat.__name__}")

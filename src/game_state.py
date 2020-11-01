@@ -113,6 +113,10 @@ class GameState:
         return result
 
     @cached_property
+    def all_valid_turns(self) -> List[PlayerTurn]:
+        return enumerate_valid_turns(self)
+
+    @cached_property
     def has_one_valid_action(self) -> bool:
         return len(self.all_valid_actions) > 0
 
@@ -277,6 +281,34 @@ def take_action(state: GameState, action: PlayerAction) -> GameState:
     piles[action.chosen_pile_index] = CardPile(cards=cards, ascending=pile.ascending)
 
     return GameState(piles=piles, hand=hand, deck=state.deck)
+
+
+def enumerate_valid_turns(state: GameState) -> List[PlayerTurn]:
+    result: List[PlayerTurn] = []
+
+    for action in state.all_valid_actions:
+        result += enumerate_valid_turns_recursive([action], [take_action(state, action)])
+
+    return result
+
+
+def enumerate_valid_turns_recursive(action_stack: List[PlayerAction], state_stack: List[GameState]) -> List[PlayerTurn]:
+    state = state_stack[-1]
+    result: List[PlayerTurn] = []
+
+    for new_action in state.all_valid_actions:
+        new_action_stack = action_stack.copy()
+        new_action_stack.append(new_action)
+        new_state = take_action(state, new_action)
+        new_state_stack = state_stack.copy()
+        new_state_stack.append(new_state)
+
+        if len(new_action_stack) >= 2:
+            result.append(PlayerTurn(new_action_stack.copy()))
+
+        result += enumerate_valid_turns_recursive(new_action_stack, new_state_stack)
+
+    return result
 
 
 def simulate(strategy: Callable[[GameState], PlayerTurn], num_games: int = 1, print_level: PrintLevel = PrintLevel.WIN_LOSS) -> None:
