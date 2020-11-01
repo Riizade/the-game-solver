@@ -159,46 +159,6 @@ class GameState:
         return result
 
     @cached_property
-    def any_card_with_valid_plays(self) -> Optional[Card]:
-        for card in self.hand:
-            if card.has_valid_play(self):
-                return card
-
-        return None
-
-    # returns all valid actions sorted in descending order of greediness
-    @cached_property
-    def actions_by_greed(self) -> List[PlayerAction]:
-        if not self.has_one_valid_action:
-            raise Exception("no valid actions, cannot sort actions")
-
-        change_normalized: Dict[PlayerAction, int] = {}
-        for action in self.all_valid_actions:
-            change_normalized[action] = action.change_normalized(self)
-
-        return sorted(change_normalized, key=lambda key: change_normalized[key])
-
-    @cached_property
-    def greediest_action(self) -> PlayerAction:
-        return self.actions_by_greed[0]
-
-    # returns the greediest action which doesn't cause you to run out of valid actions
-    @cached_property
-    def greediest_safe_action(self) -> PlayerAction:
-        for action in self.actions_by_greed:
-            if take_action(self, action).has_one_valid_action:
-                return action
-        raise Exception("no action can be taken which results in a valid game state afterward, cannot pick a greediest action")
-
-    # returns the two greediest plays in your hand
-    @cached_property
-    def greediest_turn(self) -> PlayerTurn:
-        greediest_first_play = self.greediest_safe_action
-        new_state = take_action(self, greediest_first_play)
-        greediest_second_play = new_state.greediest_action
-        return PlayerTurn([greediest_first_play, greediest_second_play])
-
-    @cached_property
     def visual(self) -> str:
         return "\n".join([
             f"hand: | {' | '.join([str(c) for c in self.hand])} |",
