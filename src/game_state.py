@@ -1,5 +1,6 @@
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 import random
 from enum import Enum
 import sys
@@ -25,6 +26,16 @@ class CardPile:
     def descending(self) -> bool:
         return not self.ascending
 
+    # returns a map of card in hand to the change in value if that card is placed on the pile
+    def change_if_placed(self, hand: List[int]) -> Dict[int, int]:
+        result: Dict[int, int] = {}
+        for card in self.valid_cards(hand):
+            result[card] = card - self.face_card
+        return result
+
+    def valid_cards(self, hand: List[int]) -> List[int]:
+        return [x for x in filter(lambda c: self.placement_is_valid(c), hand)]
+
     def placement_is_valid(self, card: int) -> bool:
         if card > self.face_card and self.ascending:
             return True
@@ -37,15 +48,19 @@ class CardPile:
 
 
 @dataclass(frozen=True)
-class VisibleGameState:
-    piles: List[CardPile] = field(default_factory=list)
-    hand: List[int] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
 class PlayerAction:
     chosen_card: int
     chosen_pile_index: int
+
+    # returns the change in value of the face card as a result of this action
+    def change(self, state: VisibleGameState) -> int:
+        return self.chosen_card - state.piles[self.chosen_pile_index].face_card
+
+    def change_normalized(self, state: VisibleGameState) -> int:
+        if state.piles[self.chosen_pile_index].descending:
+            return -1 * self.change(state)
+        else:
+            return self.change(state)
 
 
 @dataclass(frozen=True)
@@ -82,6 +97,74 @@ class GameState:
 
     def is_valid_action(self, action: PlayerAction) -> bool:
         return action.chosen_card in self.hand and self.piles[action.chosen_pile_index].placement_is_valid(action.chosen_card)
+
+
+@dataclass(frozen=True)
+class VisibleGameState:
+    piles: List[CardPile] = field(default_factory=list)
+    hand: List[int] = field(default_factory=list)
+
+    # list of change if placed where list index corresponds to pile index
+    @property
+    def change_if_placed_on_pile(self) -> List[Dict[int, int]]:
+        return [p.change_if_placed(self.hand) for p in self.piles]
+
+    # dict from card in hand to list of change if placed where list index corresponds to pile index
+    @property
+    def change_if_placed_from_hand(self) -> Dict[int, List[int]]:
+        result: Dict[int, List[int]] = {}
+        for card in self.hand:
+            result[card] = []
+            for pile_change in self.change_if_placed_on_pile:
+                result[card].append(pile_change[card])
+        return result
+
+    # Dict from card in hand to greediest play for that card
+    @property
+    def greedy_plays(self) -> Dict[int, PlayerAction]:
+        plays = {}
+        for card, l in self.change_if_placed_from_hand.items():
+            best_change_normalized = l[0]
+            best_index = 0
+            for pile_index, change in enumerate(l):
+                change_normalized = change
+                if self.piles[pile_index].descending:
+                    change_normalized = -1 * change
+                if change_normalized < best_change_normalized:
+                    best_change_normalized = change_normalized
+                    best_index = pile_index
+            plays[card] = PlayerAction(card, best_index)
+        return plays
+
+    @property
+    def greediest_action(self) -> PlayerAction:
+        best_change_normalized = self.greedy_plays[self.hand[0]].change_normalized(self)
+        best_card = self.hand[0]
+        for card, play in self.greedy_plays.items():
+            if play.change_normalized(self) < best_change_normalized:
+                best_change_normalized = play.change_normalized(self)
+                best_card = card
+
+        return self.greedy_plays[best_card]
+
+    # returns the two greediest plays in your hand
+    @property
+    def greediest_turn(self) -> PlayerTurn:
+        greediest_first_play = self.greediest_action
+        new_state = self.predict_action(greediest_first_play)
+        greediest_second_play = new_state.greediest_action
+        return PlayerTurn([greediest_first_play, greediest_second_play])
+
+    def predict_action(self, action: PlayerAction) -> VisibleGameState:
+        piles = self.piles.copy()
+        cards = self.piles[action.chosen_pile_index].cards.copy()
+        cards.append(action.chosen_card)
+        piles[action.chosen_pile_index] = CardPile(cards, self.piles[action.chosen_pile_index].ascending)
+
+        hand = self.hand.copy()
+        hand.remove(action.chosen_card)
+
+        return VisibleGameState(piles, hand)
 
 
 @dataclass(frozen=True)
