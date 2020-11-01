@@ -2,7 +2,7 @@ from random import choice as random_choice
 from typing import Callable, List
 from functools import cmp_to_key
 
-from game_state import PlayerAction, PlayerTurn, GameState, take_action
+from game_state import Card, PlayerAction, PlayerTurn, GameState, take_action
 
 
 def greedy(state: GameState) -> PlayerTurn:
@@ -19,6 +19,29 @@ def random(state: GameState) -> PlayerTurn:
         return random_choice([True, False])
 
     return prioritization(state, random_compare)
+
+
+# same as the greedy strategy but will deprioritize playing a card that would shift a pile from displaying a card for which the -10 still remains in the deck
+def greedy_tracks_tens(state: GameState) -> PlayerTurn:
+    def tracks_tens_compare(a: PlayerAction, b: PlayerAction) -> bool:
+        a_val = a.change_normalized(state)
+        b_val = b.change_normalized(state)
+
+        if get_ten_value(a) in state.deck:
+            a_val - 1000
+
+        if get_ten_value(b) in state.deck:
+            b_val - 1000
+        return a_val < b_val
+
+    def get_ten_value(action: PlayerAction) -> Card:
+        pile = state.piles[action.chosen_pile_index]
+        if pile.ascending:
+            return Card(pile.face_card.value - 10)
+        elif pile.descending:
+            return Card(pile.face_card.value + 10)
+
+    return prioritization(state, tracks_tens_compare)
 
 
 # generic strategy function that takes a less_than function that compares two PlayerActions (less is better when comparing)
