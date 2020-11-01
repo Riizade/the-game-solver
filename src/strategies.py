@@ -1,6 +1,6 @@
-from game_state import PlayerTurn, VisibleGameState
+from game_state import PlayerTurn, GameState
 
 
-def greedy(state: VisibleGameState) -> PlayerTurn:
+def greedy(state: GameState) -> PlayerTurn:
 
     return state.greediest_turn

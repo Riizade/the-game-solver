@@ -4,6 +4,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 import random
 from enum import Enum
 import sys
+from functools import cached_property
 
 
 class PrintLevel(Enum):
@@ -26,7 +27,7 @@ class Card:
     def __lt__(self, other: Card) -> bool:
         return self.value < other.value
 
-    def has_valid_play(self, state: VisibleGameState) -> bool:
+    def has_valid_play(self, state: GameState) -> bool:
         for pile in state.piles:
             if self in pile.valid_cards(state.hand):
                 return True
@@ -39,15 +40,15 @@ class CardPile:
     cards: List[Card] = field(default_factory=list)
     ascending: bool = True
 
-    @property
+    @cached_property
     def face_card(self) -> Card:
         return self.cards[-1]
 
-    @property
+    @cached_property
     def descending(self) -> bool:
         return not self.ascending
 
-    @property
+    @cached_property
     def visual(self) -> str:
         glyph = "^" if self.ascending else "v"
         return f"[ {self.face_card} {glyph} ]"
@@ -79,10 +80,10 @@ class PlayerAction:
     chosen_pile_index: int
 
     # returns the change in value of the face card as a result of this action
-    def change(self, state: VisibleGameState) -> int:
+    def change(self, state: GameState) -> int:
         return self.chosen_card.value - state.piles[self.chosen_pile_index].face_card.value
 
-    def change_normalized(self, state: VisibleGameState) -> int:
+    def change_normalized(self, state: GameState) -> int:
         if state.piles[self.chosen_pile_index].descending:
             return -1 * self.change(state)
         else:
@@ -100,7 +101,7 @@ class GameState:
     hand: List[Card] = field(default_factory=list)
     deck: List[Card] = field(default_factory=list)
 
-    @property
+    @cached_property
     def has_valid_moves(self) -> bool:
         placement_validities = []
         for card in self.hand:
@@ -109,19 +110,96 @@ class GameState:
 
         return True in placement_validities
 
-    @property
+    @cached_property
     def has_won(self) -> bool:
         if len(self.hand) == 0 and len(self.deck) == 0:
             return True
         else:
             return False
 
-    @property
-    def visible_state(self) -> VisibleGameState:
+    @cached_property
+    def visible_state(self) -> GameState:
         # copies mutable objects to prevent cheating player strategies
-        return VisibleGameState(piles=self.piles.copy(), hand=self.hand.copy())
+        return GameState(piles=self.piles.copy(), hand=self.hand.copy())
 
-    @property
+        # list of change if placed where list index corresponds to pile index
+    @cached_property
+    def change_if_placed_on_pile(self) -> List[Dict[Card, int]]:
+        return [p.change_if_placed(self.hand) for p in self.piles]
+
+    # dict from card in hand to list of change if placed where list index corresponds to pile index
+    @cached_property
+    def change_if_placed_from_hand(self) -> Dict[Card, List[int]]:
+        result: Dict[Card, List[int]] = {}
+        for card in self.hand:
+            result[card] = []
+            for pile_index, pile_change in enumerate(self.change_if_placed_on_pile):
+                if card in self.piles[pile_index].valid_cards(self.hand):
+                    result[card].append(pile_change[card])
+        return result
+
+    @cached_property
+    def any_card_with_valid_plays(self) -> Optional[Card]:
+        for card in self.hand:
+            if card.has_valid_play(self):
+                return card
+
+        return None
+
+    # Dict from card in hand to greediest play for that card
+    @cached_property
+    def greedy_plays(self) -> Dict[Card, PlayerAction]:
+        print("evaluating greedy plays")
+        plays = {}
+        for card, pile_changes in self.change_if_placed_from_hand.items():
+            if pile_changes == []:
+                continue
+            best_change_normalized = pile_changes[0]
+            best_index = 0
+            for pile_index, change in enumerate(pile_changes):
+                print(f"evaluating card {card} for pile {pile_index}")
+                if card not in self.piles[pile_index].valid_cards(self.hand):  # do not check change for invalid pile placements
+                    print("not valid")
+                    continue
+                print("valid")
+                change_normalized = change
+                if self.piles[pile_index].descending:
+                    change_normalized = -1 * change
+                if change_normalized < best_change_normalized:
+                    best_change_normalized = change_normalized
+                    best_index = pile_index
+            plays[card] = PlayerAction(card, best_index)
+        return plays
+
+    @cached_property
+    def greediest_action(self) -> PlayerAction:
+        initial_card = self.any_card_with_valid_plays
+        if initial_card is None:
+            raise Exception("no valid actions for greediest action")
+        best_change_normalized = self.greedy_plays[initial_card].change_normalized(self)
+        best_card = initial_card
+        print("-" * 80 + "\ngreedy plays:")
+        print(self.greedy_plays)
+        for card, play in self.greedy_plays.items():
+            if play.change_normalized(self) < best_change_normalized:
+                best_change_normalized = play.change_normalized(self)
+                best_card = card
+
+        return self.greedy_plays[best_card]
+
+    # returns the two greediest plays in your hand
+    @cached_property
+    def greediest_turn(self) -> PlayerTurn:
+        print(f"old state:\n{self}")
+        greediest_first_play = self.greediest_action
+        print(f"1st action: {greediest_first_play}")
+        new_state = take_action(self, greediest_first_play)
+        print(f"new state:\n{new_state}")
+        greediest_second_play = new_state.greediest_action
+        print(f"2nd action: {greediest_second_play}")
+        return PlayerTurn([greediest_first_play, greediest_second_play])
+
+    @cached_property
     def visual(self) -> str:
         return "\n".join([
             f"hand: | {' | '.join([str(c) for c in self.hand])} |",
@@ -134,104 +212,22 @@ class GameState:
 
 
 @dataclass(frozen=True)
-class VisibleGameState:
-    piles: List[CardPile] = field(default_factory=list)
-    hand: List[Card] = field(default_factory=list)
-
-    # list of change if placed where list index corresponds to pile index
-    @property
-    def change_if_placed_on_pile(self) -> List[Dict[Card, int]]:
-        return [p.change_if_placed(self.hand) for p in self.piles]
-
-    # dict from card in hand to list of change if placed where list index corresponds to pile index
-    @property
-    def change_if_placed_from_hand(self) -> Dict[Card, List[int]]:
-        result: Dict[Card, List[int]] = {}
-        for card in self.hand:
-            result[card] = []
-            for pile_index, pile_change in enumerate(self.change_if_placed_on_pile):
-                if card in self.piles[pile_index].valid_cards(self.hand):
-                    result[card].append(pile_change[card])
-        return result
-
-    @property
-    def any_card_with_valid_plays(self) -> Optional[Card]:
-        for card in self.hand:
-            if card.has_valid_play(self):
-                return card
-
-        return None
-
-    # Dict from card in hand to greediest play for that card
-    @property
-    def greedy_plays(self) -> Dict[Card, PlayerAction]:
-        plays = {}
-        for card, l in self.change_if_placed_from_hand.items():
-            if not card.has_valid_play(self):
-                continue
-            best_change_normalized = l[0]
-            best_index = 0
-            for pile_index, change in enumerate(l):
-                change_normalized = change
-                if self.piles[pile_index].descending:
-                    change_normalized = -1 * change
-                if change_normalized < best_change_normalized:
-                    best_change_normalized = change_normalized
-                    best_index = pile_index
-            plays[card] = PlayerAction(card, best_index)
-        return plays
-
-    @property
-    def greediest_action(self) -> PlayerAction:
-        initial_card = self.any_card_with_valid_plays
-        if initial_card is None:
-            raise Exception("no valid actions for greediest action")
-        best_change_normalized = self.greedy_plays[initial_card].change_normalized(self)
-        best_card = initial_card
-        for card, play in self.greedy_plays.items():
-            if play.change_normalized(self) < best_change_normalized:
-                best_change_normalized = play.change_normalized(self)
-                best_card = card
-
-        return self.greedy_plays[best_card]
-
-    # returns the two greediest plays in your hand
-    @property
-    def greediest_turn(self) -> PlayerTurn:
-        greediest_first_play = self.greediest_action
-        new_state = self.predict_action(greediest_first_play)
-        greediest_second_play = new_state.greediest_action
-        return PlayerTurn([greediest_first_play, greediest_second_play])
-
-    def predict_action(self, action: PlayerAction) -> VisibleGameState:
-        piles = self.piles.copy()
-        cards = self.piles[action.chosen_pile_index].cards.copy()
-        cards.append(action.chosen_card)
-        piles[action.chosen_pile_index] = CardPile(cards, self.piles[action.chosen_pile_index].ascending)
-
-        hand = self.hand.copy()
-        hand.remove(action.chosen_card)
-
-        return VisibleGameState(piles, hand)
-
-
-@dataclass(frozen=True)
 class AggregateStats:
     end_states: List[GameState] = field(default_factory=list)
 
-    @property
+    @cached_property
     def total_games(self) -> int:
         return len(self.end_states)
 
-    @property
+    @cached_property
     def total_wins(self) -> int:
         return len([x for x in filter(lambda s: s.has_won, self.end_states)])
 
-    @property
+    @cached_property
     def total_losses(self) -> int:
         return self.total_games - self.total_wins
 
-    @property
+    @cached_property
     def win_ratio(self) -> float:
         return float(self.total_wins) / float(self.total_games)
 
@@ -323,7 +319,7 @@ def take_action(state: GameState, action: PlayerAction) -> GameState:
     return GameState(piles=piles, hand=hand, deck=state.deck)
 
 
-def simulate(strategy: Callable[[VisibleGameState], PlayerTurn], num_games: int = 1, print_level: PrintLevel = PrintLevel.WIN_LOSS) -> None:
+def simulate(strategy: Callable[[GameState], PlayerTurn], num_games: int = 1, print_level: PrintLevel = PrintLevel.WIN_LOSS) -> None:
     end_states: List[GameState] = []
 
     for i in range(num_games):
