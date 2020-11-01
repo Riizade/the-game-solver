@@ -79,6 +79,7 @@ backtrack_solver_cache: Dict[GameState, PlayerTurn] = {}
 
 # this solver cheats by "looking into the future" and knowing which cards it will draw after playing
 def backtrack_solver(state: GameState) -> PlayerTurn:
+    global backtrack_solver_cache
     # if the cache has been populated with a winning strategy
     if state in backtrack_solver_cache:
         return backtrack_solver_cache[state]
@@ -87,8 +88,8 @@ def backtrack_solver(state: GameState) -> PlayerTurn:
     turn_index_stack = [0]
     state_stack = [state]
     while not state_stack[-1].has_won and len(state_stack) > 0:
-        print(f"action stack: {valid_turns_stack}")
-        print(f"index stack: {turn_index_stack}")
+        print(f"backtrack action stack: {valid_turns_stack}")
+        print(f"backtrack index stack: {turn_index_stack}")
         # if we can evaluate the currently selected turn index
         if turn_index_stack[-1] < len(valid_turns_stack[-1]):
             # select the turn

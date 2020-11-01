@@ -303,18 +303,70 @@ def take_action(state: GameState, action: PlayerAction) -> GameState:
     return GameState(piles=piles, hand=hand, deck=state.deck)
 
 
+action_counter = 0
+
+
 def enumerate_valid_turns(state: GameState) -> FrozenList[PlayerTurn]:
-    result: FrozenList[PlayerTurn] = FrozenList([])
+    global action_counter
+    turns: FrozenList[PlayerTurn] = FrozenList([])
+    valid_actions_stack = [state.all_valid_actions]
+    action_index_stack = [0]
+    state_stack = [state]
+    while not len(state_stack) == 0:
+        print(f"counter: {action_counter}, turn enumeration index stack: {action_index_stack}")
+        action_counter += 1
+        # if we can evaluate the currently selected action index
+        if action_index_stack[-1] < len(valid_actions_stack[-1]):
+            # select the action
+            action = valid_actions_stack[-1][action_index_stack[-1]]
+            # evaluate new state
+            new_state = take_action(state_stack[-1], action)
 
-    for action in state.all_valid_actions:
-        for turn in enumerate_valid_turns_recursive([action], [take_action(state, action)]):
-            result.append(turn)
+            # if taking this action could represent a complete turn
+            if len(state_stack) >= 2:
+                # append to turns
+                actions: FrozenList[PlayerAction] = FrozenList([])
+                for index, valid_actions in enumerate(valid_actions_stack):
+                    actions.append(valid_actions[action_index_stack[index] - 1])
+                actions.freeze()
+                turns.append(PlayerTurn(actions))
 
-    result.freeze()
-    return result
+            # mark the action as evaluated (select next action)
+            action_index_stack[-1] += 1
+
+            # increment the stacks
+            action_index_stack.append(0)
+            state_stack.append(new_state)
+            valid_actions_stack.append(new_state.all_valid_actions)
+        else:  # if we've run out of actions to evaluate on this frame
+            # pop the stacks to backtrack
+            action_index_stack.pop()
+            valid_actions_stack.pop()
+            state_stack.pop()
+
+    # once we've run out of actions
+    return turns
+
+
+# def enumerate_valid_turns(state: GameState) -> FrozenList[PlayerTurn]:
+#     result: FrozenList[PlayerTurn] = FrozenList([])
+#     print("enumerating valid turns")
+
+#     for action in state.all_valid_actions:
+#         for turn in enumerate_valid_turns_recursive([action], [take_action(state, action)]):
+#             result.append(turn)
+
+#     result.freeze()
+#     return result
+
+
+counter = 0
 
 
 def enumerate_valid_turns_recursive(action_stack: List[PlayerAction], state_stack: List[GameState]) -> FrozenList[PlayerTurn]:
+    global counter
+    counter += 1
+    print(f"stack size: {len(action_stack)}, counter: {counter}")
     state = state_stack[-1]
     result: FrozenList[PlayerTurn] = FrozenList([])
 
@@ -343,7 +395,7 @@ def simulate(strategy: Callable[[GameState], PlayerTurn], num_games: int = 1, pr
     if print_level.value <= PrintLevel.EACH_TURN.value:
         print("running simulations...")
 
-    it = range(num_games) if print_level.value >= PrintLevel.EACH_TURN.value else tqdm(range(num_games))
+    it = range(num_games) #if print_level.value >= PrintLevel.EACH_TURN.value else tqdm(range(num_games))
     for i in it:
         state = initial_state()
 
