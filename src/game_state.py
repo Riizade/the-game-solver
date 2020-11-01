@@ -26,6 +26,13 @@ class Card:
     def __lt__(self, other: Card) -> bool:
         return self.value < other.value
 
+    def has_valid_play(self, state: VisibleGameState) -> bool:
+        for pile in state.piles:
+            if self in pile.valid_cards(state.hand):
+                return True
+
+        return False
+
 
 @dataclass(frozen=True)
 class CardPile:
@@ -147,11 +154,21 @@ class VisibleGameState:
                     result[card].append(pile_change[card])
         return result
 
+    @property
+    def any_card_with_valid_plays(self) -> Optional[Card]:
+        for card in self.hand:
+            if card.has_valid_play(self):
+                return card
+
+        return None
+
     # Dict from card in hand to greediest play for that card
     @property
     def greedy_plays(self) -> Dict[Card, PlayerAction]:
         plays = {}
         for card, l in self.change_if_placed_from_hand.items():
+            if not card.has_valid_play(self):
+                continue
             best_change_normalized = l[0]
             best_index = 0
             for pile_index, change in enumerate(l):
@@ -166,8 +183,11 @@ class VisibleGameState:
 
     @property
     def greediest_action(self) -> PlayerAction:
-        best_change_normalized = self.greedy_plays[self.hand[0]].change_normalized(self)
-        best_card = self.hand[0]
+        initial_card = self.any_card_with_valid_plays
+        if initial_card is None:
+            raise Exception("no valid actions for greediest action")
+        best_change_normalized = self.greedy_plays[initial_card].change_normalized(self)
+        best_card = initial_card
         for card, play in self.greedy_plays.items():
             if play.change_normalized(self) < best_change_normalized:
                 best_change_normalized = play.change_normalized(self)
