@@ -19,10 +19,13 @@ jobs:
         run: pipenv install -d
 
       - name: tests
+        if: ${{ always() }}
         run: pipenv run test
 
       - name: mypy
+        if: ${{ always() }}
         run: pipenv run mypy
 
       - name: flake8
+        if: ${{ always() }}
         run: pipenv run flake8
