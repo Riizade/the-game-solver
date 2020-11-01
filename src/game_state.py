@@ -163,27 +163,32 @@ class GameState:
 
         return None
 
+    # returns all valid actions sorted in descending order of greediness
     @cached_property
-    def greediest_action(self) -> PlayerAction:
+    def actions_by_greed(self) -> List[PlayerAction]:
         if not self.has_one_valid_action:
-            raise Exception("no valid actions, cannot pick a greediest action")
+            raise Exception("no valid actions, cannot sort actions")
 
         change_normalized: Dict[PlayerAction, int] = {}
         for action in self.all_valid_actions:
             change_normalized[action] = action.change_normalized(self)
 
-        return max(change_normalized, key=lambda key: change_normalized[key])
+        return sorted(change_normalized, key=lambda key: change_normalized[key])
+
+    # returns the greediest action which doesn't cause you to run out of valid actions
+    @cached_property
+    def greediest_action(self) -> PlayerAction:
+        for action in self.actions_by_greed:
+            if take_action(self, action).has_one_valid_action:
+                return action
+        raise Exception("no action can be taken which results in a valid game state afterward, cannot pick a greediest action")
 
     # returns the two greediest plays in your hand
     @cached_property
     def greediest_turn(self) -> PlayerTurn:
-        print(f"old state:\n{self.visual}")
         greediest_first_play = self.greediest_action
-        print(f"1st action: {greediest_first_play}")
         new_state = take_action(self, greediest_first_play)
-        print(f"new state:\n{new_state.visual}")
         greediest_second_play = new_state.greediest_action
-        print(f"2nd action: {greediest_second_play}")
         return PlayerTurn([greediest_first_play, greediest_second_play])
 
     @cached_property
