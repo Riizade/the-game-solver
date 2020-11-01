@@ -11,7 +11,7 @@ def random(state: GameState) -> PlayerTurn:
     shuffle(valid_actions)
 
     for action in valid_actions:
-        new_state = take_action(action, state)
+        new_state = take_action(state, action)
         if new_state.has_one_valid_action:
             new_valid_actions = new_state.all_valid_actions.copy()
             shuffle(new_valid_actions)
