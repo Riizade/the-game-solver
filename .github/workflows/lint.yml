@@ -1,4 +1,4 @@
-name: lint
+name: CI
 on: [push]
 jobs:
     mypy:
@@ -12,33 +12,17 @@ jobs:
         with:
           python-version: 3.8
 
-      - name: Install dependecies
-        uses: VaultVulp/action-pipenv@v2.0.1
-        with:
-          command: install -d # Install all dependencies, including development ones
+      - name: Install pipenv
+        run: pip install pipenv
+
+      - name: Install dependencies
+        run: pipenv install -d
+
+      - name: tests
+        run: pipenv run test
 
       - name: mypy
-        uses: VaultVulp/action-pipenv@v2.0.1
-        with:
-          command: run mypy # Run custom `mypy` command defined in the `[scripts]` block of Pipfile
+        run: pipenv run mypy
 
-    flake8:
-      runs-on: ubuntu-latest
-
-      steps:
-      - uses: actions/checkout@v2 # Checking out the repo
-
-      - name: Install Python 3.8
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.8
-
-      - name: Install dependecies
-        uses: VaultVulp/action-pipenv@v2.0.1
-        with:
-          command: install -d # Install all dependencies, including development ones
-
-      - name: mypy
-        uses: VaultVulp/action-pipenv@v2.0.1
-        with:
-          command: run flake8 # Run custom `flake8` command defined in the `[scripts]` block of Pipfile
+      - name: flake8
+        run: pipenv run flake8
