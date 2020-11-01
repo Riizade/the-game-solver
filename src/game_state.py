@@ -190,11 +190,11 @@ class GameState:
     # returns the two greediest plays in your hand
     @cached_property
     def greediest_turn(self) -> PlayerTurn:
-        print(f"old state:\n{self}")
+        print(f"old state:\n{self.visual}")
         greediest_first_play = self.greediest_action
         print(f"1st action: {greediest_first_play}")
         new_state = take_action(self, greediest_first_play)
-        print(f"new state:\n{new_state}")
+        print(f"new state:\n{new_state.visual}")
         greediest_second_play = new_state.greediest_action
         print(f"2nd action: {greediest_second_play}")
         return PlayerTurn([greediest_first_play, greediest_second_play])
