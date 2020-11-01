@@ -1,0 +1,23 @@
+name: mypy
+on: [push]
+jobs:
+    mypy:
+      runs-on: ubuntu-latest
+
+      steps:
+      - uses: actions/checkout@v2 # Checking out the repo
+
+      - name: Install Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: Install pipenv
+        run: pip install pipenv
+
+      - name: Install dependencies
+        run: pipenv install -d
+
+      - name: mypy
+        if: ${{ always() }}
+        run: pipenv run mypy

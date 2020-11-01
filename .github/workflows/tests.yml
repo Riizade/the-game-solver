@@ -1,4 +1,4 @@
-name: CI
+name: tests
 on: [push]
 jobs:
     mypy:
@@ -21,11 +21,3 @@ jobs:
       - name: tests
         if: ${{ always() }}
         run: pipenv run test
-
-      - name: mypy
-        if: ${{ always() }}
-        run: pipenv run mypy
-
-      - name: flake8
-        if: ${{ always() }}
-        run: pipenv run flake8
