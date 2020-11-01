@@ -22,6 +22,8 @@ def random(state: GameState) -> PlayerTurn:
     return prioritization(state, random_compare)
 
 
+# TODO: clean this up, it's a mess
+# TODO: once we pick a JumpPlay, we should play any cards in between the pile's face and the setup card to maximize return
 def prioritize_jumps(state: GameState) -> PlayerTurn:
     @dataclass(frozen=True)
     class JumpPlay:
