@@ -35,6 +35,9 @@ class Card:
 
         return False
 
+    def can_be_placed_on_pile(self, pile: CardPile) -> bool:
+        return pile.placement_is_valid(self)
+
 
 @dataclass(frozen=True)
 class CardPile:
@@ -59,6 +62,14 @@ class CardPile:
         result: Dict[Card, int] = {}
         for card in self.valid_cards(hand):
             result[card] = card.value - self.face_card.value
+        return result
+
+    def normalized_change_if_placed(self, hand: List[Card]) -> Dict[Card, int]:
+        result: Dict[Card, int] = {}
+        for card, change in self.change_if_placed(hand).items():
+            if self.descending:
+                change = change * -1
+            result[card] = change
         return result
 
     def valid_cards(self, hand: List[Card]) -> List[Card]:

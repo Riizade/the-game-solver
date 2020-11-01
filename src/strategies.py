@@ -1,8 +1,9 @@
 from random import choice as random_choice
-from typing import Callable, List
+from typing import Callable, Dict, List, Tuple
 from functools import cmp_to_key
+from dataclasses import dataclass
 
-from game_state import Card, PlayerAction, PlayerTurn, GameState, take_action
+from game_state import Card, CardPile, PlayerAction, PlayerTurn, GameState, take_action
 
 
 def greedy(state: GameState) -> PlayerTurn:
@@ -19,6 +20,52 @@ def random(state: GameState) -> PlayerTurn:
         return random_choice([True, False])
 
     return prioritization(state, random_compare)
+
+
+def prioritize_jumps(state: GameState) -> PlayerTurn:
+    @dataclass(frozen=True)
+    class JumpPlay:
+        setup_card: Card
+        jump_card: Card
+        # normalized change value for given pile (less is better)
+        normalized_change_values: Dict[int, int]
+
+    # define all possible jump plays
+    jump_plays: List[JumpPlay] = []
+    for card in state.hand:
+        for other in state.hand:
+            if card.value + 10 == other.value or card.value - 10 == other.value:
+                normalized_change_values: Dict[int, int] = {}
+                for index, pile in enumerate(state.piles):
+                    if card.can_be_placed_on_pile(pile):
+                        change = other.value - pile.face_card.value
+                        normalized_change = change
+                        if pile.descending:
+                            normalized_change = -1 * change
+                        normalized_change_values[index] = normalized_change
+                jump_plays.append(JumpPlay(card, other, normalized_change_values))
+
+    def part_of_good_jump_play(action: PlayerAction) -> bool:
+        for play in jump_plays:
+            if action.chosen_card == play.setup_card:
+                for normalized_value in play.normalized_change_values.values():
+                    if normalized_value <= 0:
+                        return True
+
+        return False
+
+    def jump_play_compare(a: PlayerAction, b: PlayerAction) -> bool:
+        a_val = a.change_normalized(state)
+        b_val = b.change_normalized(state)
+
+        if part_of_good_jump_play(a):
+            a_val -= 100
+        if part_of_good_jump_play(b):
+            b_val -= 100
+
+        return a_val < b_val
+
+    return prioritization(state, jump_play_compare)
 
 
 # same as the greedy strategy but will deprioritize playing a card that would shift a pile from displaying a card for which the -10 still remains in the deck
