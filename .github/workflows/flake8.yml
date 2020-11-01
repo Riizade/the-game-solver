@@ -1,7 +1,7 @@
 name: flake8
 on: [push]
 jobs:
-    mypy:
+    flake8:
       runs-on: ubuntu-latest
 
       steps:

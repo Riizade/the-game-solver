@@ -1,7 +1,7 @@
 name: tests
 on: [push]
 jobs:
-    mypy:
+    tests:
       runs-on: ubuntu-latest
 
       steps:
