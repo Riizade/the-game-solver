@@ -1,11 +1,13 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple
 import random
 from enum import Enum
 import sys
 from functools import cached_property
+
 from tqdm import tqdm
+from frozenlist import FrozenList as FrozenList
 
 
 class PrintLevel(Enum):
@@ -38,7 +40,7 @@ class Card:
 
 @dataclass(frozen=True)
 class CardPile:
-    cards: List[Card] = field(default_factory=list)
+    cards: FrozenList[Card]
     ascending: bool = True
 
     @cached_property
@@ -55,14 +57,16 @@ class CardPile:
         return f"[ {self.face_card} {glyph} ]"
 
     # returns a map of card in hand to the change in value if that card is placed on the pile
-    def change_if_placed(self, hand: List[Card]) -> Dict[Card, int]:
+    def change_if_placed(self, hand: FrozenList[Card]) -> Dict[Card, int]:
         result: Dict[Card, int] = {}
         for card in self.valid_cards(hand):
             result[card] = card.value - self.face_card.value
         return result
 
-    def valid_cards(self, hand: List[Card]) -> List[Card]:
-        return [x for x in filter(lambda c: self.placement_is_valid(c), hand)]
+    def valid_cards(self, hand: FrozenList[Card]) -> FrozenList[Card]:
+        result = FrozenList([x for x in filter(lambda c: self.placement_is_valid(c), hand)])
+        result.freeze()
+        return result
 
     def placement_is_valid(self, card: Card) -> bool:
         if card.value > self.face_card.value and self.ascending:
@@ -93,27 +97,28 @@ class PlayerAction:
 
 @dataclass(frozen=True)
 class PlayerTurn:
-    actions: List[PlayerAction] = field(default_factory=list)
+    actions: FrozenList[PlayerAction]
 
 
 @dataclass(frozen=True)
 class GameState:
-    piles: List[CardPile] = field(default_factory=list)
-    hand: List[Card] = field(default_factory=list)
-    deck: List[Card] = field(default_factory=list)
+    piles: FrozenList[CardPile]
+    hand: FrozenList[Card]
+    deck: FrozenList[Card]
 
     @cached_property
-    def all_valid_actions(self) -> List[PlayerAction]:
-        result = []
+    def all_valid_actions(self) -> FrozenList[PlayerAction]:
+        result: FrozenList[PlayerAction] = FrozenList([])
         for card in self.hand:
             for pile_index, pile in enumerate(self.piles):
                 if card in pile.valid_cards(self.hand):
                     result.append(PlayerAction(card, pile_index))
 
+        result.freeze()
         return result
 
     @cached_property
-    def all_valid_turns(self) -> List[PlayerTurn]:
+    def all_valid_turns(self) -> FrozenList[PlayerTurn]:
         return enumerate_valid_turns(self)
 
     @cached_property
@@ -141,15 +146,12 @@ class GameState:
         else:
             return False
 
+    # list of change if placed where list index corresponds to pile index
     @cached_property
-    def visible_state(self) -> GameState:
-        # copies mutable objects to prevent cheating player strategies
-        return GameState(piles=self.piles.copy(), hand=self.hand.copy())
-
-        # list of change if placed where list index corresponds to pile index
-    @cached_property
-    def change_if_placed_on_pile(self) -> List[Dict[Card, int]]:
-        return [p.change_if_placed(self.hand) for p in self.piles]
+    def change_if_placed_on_pile(self) -> FrozenList[Dict[Card, int]]:
+        result = FrozenList([p.change_if_placed(self.hand) for p in self.piles])
+        result.freeze()
+        return result
 
     # dict from card in hand to pile_index -> change
     @cached_property
@@ -176,7 +178,7 @@ class GameState:
 
 @dataclass(frozen=True)
 class AggregateStats:
-    end_states: List[GameState] = field(default_factory=list)
+    end_states: FrozenList[GameState]
 
     @cached_property
     def total_games(self) -> int:
@@ -204,23 +206,31 @@ class AggregateStats:
             ])
 
 
-def initial_deck(seed: Optional[int] = None) -> List[Card]:
+def initial_deck(seed: Optional[int] = None) -> FrozenList[Card]:
     if seed is None:
         seed = random.randint(0, sys.maxsize)
     random.seed(seed)
     # tuple[random_index, card_value]
     ordered_tuples: List[Tuple[int, int]] = [(random.randint(0, sys.maxsize), n) for n in range(2, 100)]
     ordered_tuples.sort()
-    return [Card(t[1]) for t in ordered_tuples]
+    deck = FrozenList([Card(t[1]) for t in ordered_tuples])
+    deck.freeze()
+    return deck
 
 
-def initial_piles() -> List[CardPile]:
-    piles = []
+def initial_piles() -> FrozenList[CardPile]:
+    piles: FrozenList[CardPile] = FrozenList([])
     for i in range(2):
-        piles.append(CardPile(cards=[Card(1)], ascending=True))
+        cards = FrozenList([Card(1)])
+        cards.freeze()
+        piles.append(CardPile(cards=cards, ascending=True))
 
     for i in range(2):
-        piles.append(CardPile(cards=[Card(100)], ascending=False))
+        cards = FrozenList([Card(100)])
+        cards.freeze()
+        piles.append(CardPile(cards=cards, ascending=False))
+
+    piles.freeze()
 
     return piles
 
@@ -228,7 +238,9 @@ def initial_piles() -> List[CardPile]:
 def initial_state(seed: Optional[int] = None) -> GameState:
     deck = initial_deck(seed)
     piles = initial_piles()
-    state = GameState(piles=piles, hand=[], deck=deck)
+    hand: FrozenList[Card] = FrozenList([])
+    hand.freeze()
+    state = GameState(piles=piles, hand=hand, deck=deck)
 
     return draw_cards(state)
 
@@ -242,16 +254,20 @@ def draw_cards(state: GameState) -> GameState:
 
 def draw_card(state: GameState) -> GameState:
     # copy mutable data to prevent modifying the original input
-    deck = state.deck.copy()
-    hand = state.hand.copy()
+    deck = FrozenList([x for x in state.deck])
+    hand = [x for x in state.hand]
 
     # draw card and add to hand
     drawn_card = deck.pop()
     hand.append(drawn_card)
     hand.sort()
+    sorted_hand = FrozenList(hand)
+
+    deck.freeze()
+    sorted_hand.freeze()
 
     # create new immutable data for return
-    return GameState(piles=state.piles, hand=hand, deck=deck)
+    return GameState(piles=state.piles, hand=sorted_hand, deck=deck)
 
 
 def take_turn(state: GameState, turn: PlayerTurn) -> GameState:
@@ -271,30 +287,36 @@ def take_action(state: GameState, action: PlayerAction) -> GameState:
         raise Exception(f"player cheated, action {action} is not valid at state {state}")
 
     # copy mutable variables to prevent mutation of previous state, then modify
-    hand = state.hand.copy()
+    hand = FrozenList([x for x in state.hand])
     hand.remove(action.chosen_card)
 
-    piles = state.piles.copy()
+    piles = FrozenList([x for x in state.piles])
     pile = state.piles[action.chosen_pile_index]
-    cards = pile.cards.copy()
+    cards = FrozenList([x for x in pile.cards])
     cards.append(action.chosen_card)
     piles[action.chosen_pile_index] = CardPile(cards=cards, ascending=pile.ascending)
+
+    cards.freeze()
+    piles.freeze()
+    hand.freeze()
 
     return GameState(piles=piles, hand=hand, deck=state.deck)
 
 
-def enumerate_valid_turns(state: GameState) -> List[PlayerTurn]:
-    result: List[PlayerTurn] = []
+def enumerate_valid_turns(state: GameState) -> FrozenList[PlayerTurn]:
+    result: FrozenList[PlayerTurn] = FrozenList([])
 
     for action in state.all_valid_actions:
-        result += enumerate_valid_turns_recursive([action], [take_action(state, action)])
+        for turn in enumerate_valid_turns_recursive([action], [take_action(state, action)]):
+            result.append(turn)
 
+    result.freeze()
     return result
 
 
-def enumerate_valid_turns_recursive(action_stack: List[PlayerAction], state_stack: List[GameState]) -> List[PlayerTurn]:
+def enumerate_valid_turns_recursive(action_stack: List[PlayerAction], state_stack: List[GameState]) -> FrozenList[PlayerTurn]:
     state = state_stack[-1]
-    result: List[PlayerTurn] = []
+    result: FrozenList[PlayerTurn] = FrozenList([])
 
     for new_action in state.all_valid_actions:
         new_action_stack = action_stack.copy()
@@ -304,15 +326,19 @@ def enumerate_valid_turns_recursive(action_stack: List[PlayerAction], state_stac
         new_state_stack.append(new_state)
 
         if len(new_action_stack) >= 2:
-            result.append(PlayerTurn(new_action_stack.copy()))
+            actions = FrozenList(new_action_stack.copy())
+            actions.freeze()
+            result.append(PlayerTurn(actions))
 
-        result += enumerate_valid_turns_recursive(new_action_stack, new_state_stack)
+        for turn in enumerate_valid_turns_recursive(new_action_stack, new_state_stack):
+            result.append(turn)
 
+    result.freeze()
     return result
 
 
 def simulate(strategy: Callable[[GameState], PlayerTurn], num_games: int = 1, print_level: PrintLevel = PrintLevel.WIN_LOSS) -> None:
-    end_states: List[GameState] = []
+    end_states: FrozenList[GameState] = FrozenList([])
 
     if print_level.value <= PrintLevel.EACH_TURN.value:
         print("running simulations...")
@@ -322,7 +348,7 @@ def simulate(strategy: Callable[[GameState], PlayerTurn], num_games: int = 1, pr
         state = initial_state()
 
         while state.has_one_valid_turn:
-            turn = strategy(state.visible_state)
+            turn = strategy(state)
             state = take_turn(state, turn)
 
             if print_level.value >= PrintLevel.EACH_TURN.value:
@@ -345,6 +371,7 @@ def simulate(strategy: Callable[[GameState], PlayerTurn], num_games: int = 1, pr
 
         end_states.append(state)
 
+    end_states.freeze()
     if print_level.value >= PrintLevel.AGGREGATE.value:
         print("#" * 80)
         print(AggregateStats(end_states=end_states).visual)

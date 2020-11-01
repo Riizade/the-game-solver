@@ -11,6 +11,7 @@ nose = "*"
 
 [packages]
 tqdm = "*"
+frozenlist = "*"
 
 [requires]
 python_version = "3.8"
