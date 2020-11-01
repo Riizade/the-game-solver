@@ -14,12 +14,26 @@ class PrintLevel(Enum):
 
 
 @dataclass(frozen=True)
+class Card:
+    value: int
+
+    def __repr__(self) -> str:
+        return str(self.value)
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+    def __lt__(self, other: Card) -> bool:
+        return self.value < other.value
+
+
+@dataclass(frozen=True)
 class CardPile:
-    cards: List[int] = field(default_factory=list)
+    cards: List[Card] = field(default_factory=list)
     ascending: bool = True
 
     @property
-    def face_card(self) -> int:
+    def face_card(self) -> Card:
         return self.cards[-1]
 
     @property
@@ -32,21 +46,21 @@ class CardPile:
         return f"[ {self.face_card} {glyph} ]"
 
     # returns a map of card in hand to the change in value if that card is placed on the pile
-    def change_if_placed(self, hand: List[int]) -> Dict[int, int]:
-        result: Dict[int, int] = {}
+    def change_if_placed(self, hand: List[Card]) -> Dict[Card, int]:
+        result: Dict[Card, int] = {}
         for card in self.valid_cards(hand):
-            result[card] = card - self.face_card
+            result[card] = card.value - self.face_card.value
         return result
 
-    def valid_cards(self, hand: List[int]) -> List[int]:
+    def valid_cards(self, hand: List[Card]) -> List[Card]:
         return [x for x in filter(lambda c: self.placement_is_valid(c), hand)]
 
-    def placement_is_valid(self, card: int) -> bool:
-        if card > self.face_card and self.ascending:
+    def placement_is_valid(self, card: Card) -> bool:
+        if card.value > self.face_card.value and self.ascending:
             return True
-        elif card < self.face_card and self.descending:
+        elif card.value < self.face_card.value and self.descending:
             return True
-        elif card == self.face_card + 10 or card == self.face_card - 10:
+        elif card.value == self.face_card.value + 10 or card.value == self.face_card.value - 10:
             return True
         else:
             return False
@@ -54,12 +68,12 @@ class CardPile:
 
 @dataclass(frozen=True)
 class PlayerAction:
-    chosen_card: int
+    chosen_card: Card
     chosen_pile_index: int
 
     # returns the change in value of the face card as a result of this action
     def change(self, state: VisibleGameState) -> int:
-        return self.chosen_card - state.piles[self.chosen_pile_index].face_card
+        return self.chosen_card.value - state.piles[self.chosen_pile_index].face_card.value
 
     def change_normalized(self, state: VisibleGameState) -> int:
         if state.piles[self.chosen_pile_index].descending:
@@ -76,8 +90,8 @@ class PlayerTurn:
 @dataclass(frozen=True)
 class GameState:
     piles: List[CardPile] = field(default_factory=list)
-    hand: List[int] = field(default_factory=list)
-    deck: List[int] = field(default_factory=list)
+    hand: List[Card] = field(default_factory=list)
+    deck: List[Card] = field(default_factory=list)
 
     @property
     def has_valid_moves(self) -> bool:
@@ -115,17 +129,17 @@ class GameState:
 @dataclass(frozen=True)
 class VisibleGameState:
     piles: List[CardPile] = field(default_factory=list)
-    hand: List[int] = field(default_factory=list)
+    hand: List[Card] = field(default_factory=list)
 
     # list of change if placed where list index corresponds to pile index
     @property
-    def change_if_placed_on_pile(self) -> List[Dict[int, int]]:
+    def change_if_placed_on_pile(self) -> List[Dict[Card, int]]:
         return [p.change_if_placed(self.hand) for p in self.piles]
 
     # dict from card in hand to list of change if placed where list index corresponds to pile index
     @property
-    def change_if_placed_from_hand(self) -> Dict[int, List[int]]:
-        result: Dict[int, List[int]] = {}
+    def change_if_placed_from_hand(self) -> Dict[Card, List[int]]:
+        result: Dict[Card, List[int]] = {}
         for card in self.hand:
             result[card] = []
             for pile_index, pile_change in enumerate(self.change_if_placed_on_pile):
@@ -135,7 +149,7 @@ class VisibleGameState:
 
     # Dict from card in hand to greediest play for that card
     @property
-    def greedy_plays(self) -> Dict[int, PlayerAction]:
+    def greedy_plays(self) -> Dict[Card, PlayerAction]:
         plays = {}
         for card, l in self.change_if_placed_from_hand.items():
             best_change_normalized = l[0]
@@ -210,23 +224,23 @@ class AggregateStats:
             ])
 
 
-def initial_deck(seed: Optional[int] = None) -> List[int]:
+def initial_deck(seed: Optional[int] = None) -> List[Card]:
     if seed is None:
         seed = random.randint(0, sys.maxsize)
     random.seed(seed)
     # tuple[random_index, card_value]
     ordered_tuples: List[Tuple[int, int]] = [(random.randint(0, sys.maxsize), n) for n in range(2, 100)]
     ordered_tuples.sort()
-    return [t[1] for t in ordered_tuples]
+    return [Card(t[1]) for t in ordered_tuples]
 
 
 def initial_piles() -> List[CardPile]:
     piles = []
     for i in range(2):
-        piles.append(CardPile(cards=[1], ascending=True))
+        piles.append(CardPile(cards=[Card(1)], ascending=True))
 
     for i in range(2):
-        piles.append(CardPile(cards=[100], ascending=False))
+        piles.append(CardPile(cards=[Card(100)], ascending=False))
 
     return piles
 
@@ -306,7 +320,7 @@ def simulate(strategy: Callable[[VisibleGameState], PlayerTurn], num_games: int 
                     print(f"player places {action.chosen_card} on pile {action.chosen_pile_index}")
                 print("player ends their turn")
                 print(state.visual)
-                print ('-' * 80)
+                print('-' * 80)
 
         # end of game
         if print_level.value >= PrintLevel.WIN_LOSS.value:
