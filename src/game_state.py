@@ -192,7 +192,7 @@ def take_action(state: GameState, action: PlayerAction) -> GameState:
     return GameState(piles=piles, hand=hand, deck=state.deck)
 
 
-def simulate_game(strategy: Callable[[VisibleGameState], PlayerTurn], num_games: int = 1, print_level: PrintLevel = PrintLevel.WIN_LOSS) -> None:
+def simulate(strategy: Callable[[VisibleGameState], PlayerTurn], num_games: int = 1, print_level: PrintLevel = PrintLevel.WIN_LOSS) -> None:
     end_states: List[GameState] = []
 
     for i in range(num_games):
@@ -203,6 +203,9 @@ def simulate_game(strategy: Callable[[VisibleGameState], PlayerTurn], num_games:
             state = take_turn(state, turn)
 
             if print_level.value >= PrintLevel.EACH_TURN:
+                for action in turn.actions:
+                    print(f"player places {action.chosen_card} on pile {action.chosen_pile_index}")
+                print("player ends their turn")
                 print(state.__repr__)
 
         # end of game

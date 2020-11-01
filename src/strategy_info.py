@@ -21,7 +21,7 @@ class PileInformation:
     def change_if_placed(self) -> Dict[int, int]:
         result: Dict[int, int] = {}
         for card in self.valid_cards:
-            result[card] = result - self.pile.face_card
+            result[card] = card - self.pile.face_card
         return result
 
 
