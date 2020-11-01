@@ -15,20 +15,20 @@ class PrintLevel(Enum):
 @dataclass(frozen=True)
 class CardPile:
     cards: List[int] = field(default_factory=list)
-    direction_ascending: bool = True
+    ascending: bool = True
 
     @property
     def face_card(self) -> int:
         return self.cards[-1]
 
     @property
-    def direction_descending(self) -> bool:
-        return not self.direction_ascending
+    def descending(self) -> bool:
+        return not self.ascending
 
     def placement_is_valid(self, card: int) -> bool:
-        if card > self.face_card and self.direction_ascending:
+        if card > self.face_card and self.ascending:
             return True
-        elif card < self.face_card and self.direction_descending:
+        elif card < self.face_card and self.descending:
             return True
         elif card == self.face_card + 10 or card == self.face_card - 10:
             return True
@@ -125,12 +125,11 @@ def initial_deck(seed: Optional[int] = None) -> List[int]:
 
 def initial_piles() -> List[CardPile]:
     piles = []
+    for i in range(2):
+        piles.append(CardPile(cards=[1], ascending=True))
 
     for i in range(2):
-        piles.append(CardPile(cards=[100], direction_ascending=False))
-
-    for i in range(2):
-        piles.append(CardPile(cards=[1], direction_ascending=True))
+        piles.append(CardPile(cards=[100], ascending=False))
 
     return piles
 
@@ -158,6 +157,7 @@ def draw_card(state: GameState) -> GameState:
     # draw card and add to hand
     drawn_card = deck.pop()
     hand.append(drawn_card)
+    hand.sort()
 
     # create new immutable data for return
     return GameState(piles=state.piles, hand=hand, deck=deck)
@@ -187,7 +187,7 @@ def take_action(state: GameState, action: PlayerAction) -> GameState:
     pile = state.piles[action.chosen_pile_index]
     cards = pile.cards.copy()
     cards.append(action.chosen_card)
-    piles[action.chosen_pile_index] = CardPile(cards=cards, direction_ascending=pile.direction_ascending)
+    piles[action.chosen_pile_index] = CardPile(cards=cards, ascending=pile.ascending)
 
     return GameState(piles=piles, hand=hand, deck=state.deck)
 
