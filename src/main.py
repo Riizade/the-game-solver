@@ -3,7 +3,7 @@ from strategies import greedy
 
 
 def main():
-    simulate(greedy, 100, PrintLevel.EACH_TURN)
+    simulate(greedy, 1000, PrintLevel.AGGREGATE)
 
 
 if __name__ == "__main__":

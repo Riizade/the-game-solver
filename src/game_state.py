@@ -5,6 +5,7 @@ import random
 from enum import Enum
 import sys
 from functools import cached_property
+from tqdm import tqdm
 
 
 class PrintLevel(Enum):
@@ -117,9 +118,11 @@ class GameState:
 
     @cached_property
     def has_one_valid_turn(self) -> bool:
+        # can't have a valid turn if there are no valid actions
         if not self.has_one_valid_action:
             return False
 
+        # for there to be a valid turn, there must be two actions that can be taken consecutively
         for action in self.all_valid_actions:
             next_state = take_action(self, action)
             if next_state.has_one_valid_action:
@@ -175,9 +178,13 @@ class GameState:
 
         return sorted(change_normalized, key=lambda key: change_normalized[key])
 
-    # returns the greediest action which doesn't cause you to run out of valid actions
     @cached_property
     def greediest_action(self) -> PlayerAction:
+        return self.actions_by_greed[0]
+
+    # returns the greediest action which doesn't cause you to run out of valid actions
+    @cached_property
+    def greediest_safe_action(self) -> PlayerAction:
         for action in self.actions_by_greed:
             if take_action(self, action).has_one_valid_action:
                 return action
@@ -186,7 +193,7 @@ class GameState:
     # returns the two greediest plays in your hand
     @cached_property
     def greediest_turn(self) -> PlayerTurn:
-        greediest_first_play = self.greediest_action
+        greediest_first_play = self.greediest_safe_action
         new_state = take_action(self, greediest_first_play)
         greediest_second_play = new_state.greediest_action
         return PlayerTurn([greediest_first_play, greediest_second_play])
@@ -223,7 +230,8 @@ class AggregateStats:
     def win_ratio(self) -> float:
         return float(self.total_wins) / float(self.total_games)
 
-    def __str__(self) -> str:
+    @cached_property
+    def visual(self) -> str:
         return "\n".join([
             f"total games: {self.total_games}",
             f"wins: {self.total_wins}",
@@ -314,7 +322,11 @@ def take_action(state: GameState, action: PlayerAction) -> GameState:
 def simulate(strategy: Callable[[GameState], PlayerTurn], num_games: int = 1, print_level: PrintLevel = PrintLevel.WIN_LOSS) -> None:
     end_states: List[GameState] = []
 
-    for i in range(num_games):
+    if print_level.value <= PrintLevel.EACH_TURN.value:
+        print("running simulations...")
+
+    it = range(num_games) if print_level.value >= PrintLevel.EACH_TURN.value else tqdm(range(num_games))
+    for i in it:
         state = initial_state()
 
         while state.has_one_valid_turn:
@@ -343,4 +355,4 @@ def simulate(strategy: Callable[[GameState], PlayerTurn], num_games: int = 1, pr
 
     if print_level.value >= PrintLevel.AGGREGATE.value:
         print("#" * 80)
-        print(AggregateStats(end_states=end_states).__repr__())
+        print(AggregateStats(end_states=end_states).visual)
