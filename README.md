@@ -1,5 +1,13 @@
 # the-game-solver
-Solver for the card game "The Game"
+Simulator for the card game "The Game"
+
+Description
+=====
+This repo contains a simulator for the game state of "The Game" by Pandasaurus games.
+
+You can implement a strategy for playing the game by simply writing a function with the signature `(GameState) -> PlayerTurn`.
+
+The rules for the game can be found [here](https://www.dropbox.com/s/cs2ht2msdkzvtty/The-Game_Rules_2020-Rebrand_Working.pdf?dl=0)
 
 Requirements
 =====
