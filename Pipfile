@@ -15,6 +15,6 @@ python_version = "3.8"
 
 [scripts]
 main = "python src/main.py"
-test = "py.test"
+test = "pytest"
 flake8 = "flake8 ."
 mypy = "mypy src test"
